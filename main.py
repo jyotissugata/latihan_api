@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 import pandas as pd
 
 app = FastAPI()
+password = 'secret123'
 
 # endpoint -> membuka halaman utama
 @app.get('/')
@@ -11,6 +12,7 @@ def getMain():
     }
 
 # jalankan dengan : fastapi dev main.py
+# stop dengan ctrl + c
 
 #endpoint 2 -> menampilkan data dari csv
 @app.get("/detail")
@@ -28,33 +30,45 @@ def getDetail():
 @app.get("/detail/{id}")
 def getDataById(id: int):
     df = pd.read_csv('data.csv')
+
     # filter
-    result = df.query(f"id == {id}")
-
-    #cek apakah hasil filter ada isinya
-    # ada -> success, ga ada eror
-    if result.empty :
-        raise HTTPException(status_code = 404, detail="data tidak ditemukan" )
-
-    return {
-        "data": result.to_dict(orient="records")
-    }
-
-# endpoint 4
-@app.deletes(f"/getDetail/{id}")
-def deleteDataById(id: int):
-    df = pd.read_csv ('data.csv')
-
     result = df.query(f"id == {id}")
 
     # cek apakah hasil filter ada isinya
     # ada -> success, gaada -> error
     if result.empty:
         # kasih error
-        raise HTTPException(status_code = 404, detail="data tidak ditemukan" )
+        raise HTTPException(status_code=404, detail="data tidak ditemukan!")
+
+    return {
+        "data": result.to_dict(orient="records")
+    }
+
+# endpoint 4 -> delete data by id
+# apply auth
+@app.delete("/detail/{id}")
+def deleteDataById(id: int, api_key: str = Header()):
+    # check api_key
+    # benar -> lanjut, salah -> error
+    if api_key == None or api_key != password:
+        # kasih error
+        raise HTTPException(status_code=401, detail="password salah!")
+
+    df = pd.read_csv('data.csv')
+
+    # filter
+    result = df.query(f"id == {id}")
+
+    # cek apakah hasil filter ada isinya
+    # ada -> lanjut ke delete, gaada -> error
+    if result.empty:
+        # kasih error
+        raise HTTPException(status_code=404, detail="data tidak ditemukan!")
     
-    #delete
+    # delete -> exclude id yang ada di parameter
     df = df.query(f"id != {id}")
+
+    # update dataset -> replace dataset yang lama dengan yang baru
     df.to_csv('data.csv', index=False)
 
     return {
